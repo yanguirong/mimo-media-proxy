@@ -1,5 +1,6 @@
 import express from "express"
-import { PORT, LOG_PREFIX } from "./constants.js"
+import { PORT } from "./constants.js"
+import { logger } from "./logger.js"
 import { handleMessages } from "./proxy.js"
 
 const app = express()
@@ -23,9 +24,7 @@ app.all("*", (_req, res) => {
 })
 
 app.listen(PORT, () => {
-  console.log(`${LOG_PREFIX} Server started on port ${PORT}`)
-  console.log(
-    `${LOG_PREFIX} Proxying Anthropic Messages API with automatic image/PDF handling`
-  )
-  console.log(`${LOG_PREFIX} Health check: http://localhost:${PORT}/health`)
+  logger.log(`Server started on port ${PORT}`)
+  logger.log(`Proxying Anthropic Messages API with automatic image/PDF handling`)
+  logger.log(`Health check: http://localhost:${PORT}/health`)
 })

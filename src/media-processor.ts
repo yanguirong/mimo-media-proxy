@@ -4,8 +4,8 @@ import {
   VISION_SYSTEM_PROMPT,
   VISION_TIMEOUT_MS,
   API_KEY,
-  LOG_PREFIX,
 } from "./constants.js"
+import { logger } from "./logger.js"
 import type {
   ContentBlock,
   ImageContentBlock,
@@ -63,8 +63,8 @@ export async function generateDescriptions(
   }
 
   const url = `${VISION_UPSTREAM_URL}/v1/messages`
-  console.log(
-    `${LOG_PREFIX} Calling ${VISION_MODEL} at ${url} with ${mediaInfos.length} media block(s)`
+  logger.log(
+    `Calling ${VISION_MODEL} at ${url} with ${mediaInfos.length} media block(s)`
   )
 
   const headers: Record<string, string> = {
@@ -72,8 +72,8 @@ export async function generateDescriptions(
     "anthropic-version": "2023-06-01",
   }
   const key = apiKey || API_KEY
-  console.log(`${LOG_PREFIX} API key source: ${apiKey ? "from request header" : API_KEY ? "from env var" : "NONE"}`)
-  console.log(`${LOG_PREFIX} API key value: ${key ? key.substring(0, 10) + "..." : "(empty)"}`)
+  logger.log(`API key source: ${apiKey ? "from request header" : API_KEY ? "from env var" : "NONE"}`)
+  logger.log(`API key value: ${key ? key.substring(0, 10) + "..." : "(empty)"}`)
   if (key) {
     headers["x-api-key"] = key
   }
@@ -108,7 +108,7 @@ export async function generateDescriptions(
         .join("\n") || ""
 
     if (!description) {
-      console.warn(`${LOG_PREFIX} Vision model returned empty description`)
+      logger.warn(`Vision model returned empty description`)
     }
 
     // 将描述映射回每个媒体块
@@ -116,16 +116,16 @@ export async function generateDescriptions(
       result.set(`${info.messageIndex}:${info.blockIndex}`, description)
     }
 
-    console.log(
-      `${LOG_PREFIX} Got description (${description.length} chars) from ${VISION_MODEL}`
+    logger.log(
+      `Got description (${description.length} chars) from ${VISION_MODEL}`
     )
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      console.error(
-        `${LOG_PREFIX} Vision API request timed out after ${VISION_TIMEOUT_MS}ms`
+      logger.error(
+        `Vision API request timed out after ${VISION_TIMEOUT_MS}ms`
       )
     } else {
-      console.error(`${LOG_PREFIX} Vision API error:`, error)
+      logger.error(`Vision API error:`, error)
     }
     // 出错时不填充描述，让调用方决定降级策略
   } finally {

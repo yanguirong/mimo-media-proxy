@@ -3,13 +3,13 @@ import {
   UPSTREAM_URL,
   PRO_MODEL,
   VISION_MODEL,
-  LOG_PREFIX,
 } from "./constants.js"
 import {
   extractMediaBlocks,
   replaceMediaWithDescriptions,
 } from "./media-detector.js"
 import { generateDescriptions } from "./media-processor.js"
+import { logger } from "./logger.js"
 import type { AnthropicRequest } from "./types.js"
 
 /**
@@ -47,7 +47,7 @@ async function forwardToUpstream(
       body: JSON.stringify(body),
     })
 
-    console.log(`${LOG_PREFIX} Upstream response: ${upstreamRes.status} ${upstreamRes.statusText}`)
+    logger.log(`Upstream response: ${upstreamRes.status} ${upstreamRes.statusText}`)
 
     // 设置响应状态码和头
     res.status(upstreamRes.status)
@@ -58,7 +58,7 @@ async function forwardToUpstream(
 
     if (isStream && upstreamRes.body) {
       // 流式响应：直接 pipe
-      console.log(`${LOG_PREFIX} Streaming response, piping to client`)
+      logger.log(`Streaming response, piping to client`)
       res.setHeader("cache-control", "no-cache")
       res.setHeader("connection", "keep-alive")
 
@@ -88,14 +88,14 @@ async function forwardToUpstream(
       // 非流式响应：读取完整 body 返回
       const text = await upstreamRes.text()
       if (upstreamRes.status >= 400) {
-        console.log(`${LOG_PREFIX} Upstream error body:`, text.substring(0, 500))
+        logger.log(`Upstream error body:`, text.substring(0, 500))
       } else {
-        console.log(`${LOG_PREFIX} Non-stream response, ${text.length} bytes`)
+        logger.log(`Non-stream response, ${text.length} bytes`)
       }
       res.send(text)
     }
   } catch (error) {
-    console.error(`${LOG_PREFIX} Forward error:`, error)
+    logger.error(`Forward error:`, error)
     if (!res.headersSent) {
       res.status(502).json({
         type: "error",
@@ -132,13 +132,13 @@ export async function handleMessages(req: Request, res: Response): Promise<void>
 
   if (!extraction.hasMedia) {
     // 完全没有媒体内容，直接透传
-    console.log(`${LOG_PREFIX} No media detected, forwarding directly. model=${body.model}, messages=${body.messages.length}, stream=${body.stream}`)
+    logger.log(`No media detected, forwarding directly. model=${body.model}, messages=${body.messages.length}, stream=${body.stream}`)
     await forwardToUpstream(body, req, res)
     return
   }
 
-  console.log(
-    `${LOG_PREFIX} Media detected: ${extraction.newMedia.length} new, ${extraction.historicalMedia.length} historical`
+  logger.log(
+    `Media detected: ${extraction.newMedia.length} new, ${extraction.historicalMedia.length} historical`
   )
 
   // 只对新增图片调用 mimo-v2.5 生成描述
@@ -150,13 +150,13 @@ export async function handleMessages(req: Request, res: Response): Promise<void>
   let descriptions = new Map<string, string>()
 
   if (extraction.newMedia.length > 0) {
-    console.log(
-      `${LOG_PREFIX} Calling ${VISION_MODEL} for ${extraction.newMedia.length} new image(s)`
+    logger.log(
+      `Calling ${VISION_MODEL} for ${extraction.newMedia.length} new image(s)`
     )
     descriptions = await generateDescriptions(extraction.newMedia, apiKey)
 
     if (descriptions.size === 0) {
-      console.warn(`${LOG_PREFIX} Description generation failed, forwarding original request as fallback`)
+      logger.warn(`Description generation failed, forwarding original request as fallback`)
       await forwardToUpstream(body, req, res)
       return
     }
@@ -167,8 +167,8 @@ export async function handleMessages(req: Request, res: Response): Promise<void>
   modifiedBody.model = PRO_MODEL
 
   const elapsed = Date.now() - startTime
-  console.log(
-    `${LOG_PREFIX} Processing completed in ${elapsed}ms, forwarding to ${PRO_MODEL}`
+  logger.log(
+    `Processing completed in ${elapsed}ms, forwarding to ${PRO_MODEL}`
   )
 
   await forwardToUpstream(modifiedBody, req, res)
